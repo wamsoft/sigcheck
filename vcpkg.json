@@ -1,0 +1,8 @@
+{
+  "name": "sigcheck",
+  "version": "0.0.1",
+  "dependencies": [
+    "libtomcrypt",
+    "libtommath"
+  ]
+}
