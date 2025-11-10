@@ -54,13 +54,13 @@ public:
 	// 経過イベント送信
 	void eventProgress(iTJSDispatch2 *objthis) {
 		tTJSVariant *vars[] = {&handler, &info, &progressPercent};
-		objthis->FuncCall(0, L"onCheckSignatureProgress", NULL, NULL, 3, vars, objthis);
+		objthis->FuncCall(0, TJS_W("onCheckSignatureProgress"), NULL, NULL, 3, vars, objthis);
 	}
 
 	// 終了イベント送信
 	void eventDone(iTJSDispatch2 *objthis) {
 		tTJSVariant *vars[] = {&handler, &info, &result, &errormsg};
-		objthis->FuncCall(0, L"onCheckSignatureDone", NULL, NULL, 4, vars, objthis);
+		objthis->FuncCall(0, TJS_W("onCheckSignatureDone"), NULL, NULL, 4, vars, objthis);
 	}
 	
 public:
@@ -103,8 +103,8 @@ protected:
 		tTJSVariant proc     = (tTVInteger)(tjs_intptr_t)receiver;
 		tTJSVariant userdata = (tTVInteger)(tjs_intptr_t)objthis;
 		tTJSVariant *p[] = {&mode, &proc, &userdata};
-		if (objthis->FuncCall(0, L"registerMessageReceiver", NULL, NULL, 4, p, objthis) != TJS_S_OK) {
-			TVPThrowExceptionMessage(L"can't regist user message receiver");
+		if (objthis->FuncCall(0, TJS_W("registerMessageReceiver"), NULL, NULL, 4, p, objthis) != TJS_S_OK) {
+			TVPThrowExceptionMessage(TJS_W("can't regist user message receiver"));
 		}
 	}
 
@@ -309,7 +309,7 @@ SigChecker::CheckKrkrExecutable(const char *mark)
 	
 	IStream *st = TVPCreateIStream(filename, TJS_BS_READ);
 	if (st == NULL) {
-		errormsg = ttstr(L"can't open file:") + filename;
+		errormsg = ttstr(TJS_W("can't open file:")) + filename;
 		return EXCEPTION;
 	}
 	
@@ -339,7 +339,7 @@ SigChecker::CheckKrkrExecutable(const char *mark)
 		}
 	} catch(...) {
 		st->Release();
-		errormsg = L"exception";
+		errormsg = TJS_W("exception");
 		return EXCEPTION;
 	}
 	st->Release();
@@ -362,12 +362,12 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		// read pubkey
 		const char *start = strstr(inkey, startline);
 		if (!start) {
-			errormsg = ttstr(L"Cannot find \"") + startline + "\" in the key string";
+			errormsg = ttstr(TJS_W("Cannot find \")") + startline + "\" in the key string";
 			return EXCEPTION;
 		}
 		const char *end = strstr(inkey, endline);
 		if (!end) {
-			errormsg = ttstr(L"Cannot find \"") + endline + "\" in the key string";
+			errormsg = ttstr(TJS_W("Cannot find \")") + endline + "\" in the key string";
 			return EXCEPTION;
 		}
 		start += strlen(startline);
@@ -391,12 +391,12 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		IStream *st = NULL;
 		if(ofs == -1) {
 			// separated
-			ttstr signame = filename + L".sig";
+			ttstr signame = filename + TJS_W(".sig");
 			if (TVPGetPlacedPath(signame) == "") {
-				errormsg = ttstr(L"not exist:") + signame;
+				errormsg = ttstr(TJS_W("not exist:")) + signame;
 				return EXCEPTION;
 			}
-			st = TVPCreateIStream(filename + L".sig", TJS_BS_READ);
+			st = TVPCreateIStream(filename + TJS_W(".sig"), TJS_BS_READ);
 		} else {
 			// embedded
 			st = TVPCreateIStream(filename, TJS_BS_READ);
@@ -404,14 +404,14 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		}
 		if (st == NULL) {
 			// 署名ファイルが開けないので失敗
-			errormsg = L"can't open signature file";
+			errormsg = TJS_W("can't open signature file");
 			return EXCEPTION;
 		}
 		try {
 			st->Read(buf_asc, sizeof(buf_asc) - 1, &buf_asc_len);
 		} catch(...) {
 			st->Release();
-			errormsg = L"exception";
+			errormsg = TJS_W("exception");
 			return EXCEPTION;
 		}
 		st->Release();
@@ -421,7 +421,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		
 		string signmark("-- SIGNATURE - " HASH_METHOD_STRING "/PSS/RSA --");
 		if(strncmp(buf_asc, signmark.data(), signmark.size())) {
-			errormsg = L"Invalid signature file format";
+			errormsg = TJS_W("Invalid signature file format");
 			return EXCEPTION;
 		}
 		
@@ -453,7 +453,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 
 		IStream *st = TVPCreateIStream(filename, TJS_BS_READ);
 		if (st == NULL) {
-			errormsg = ttstr(L"can't open file:") + filename;
+			errormsg = ttstr(TJS_W("can't open file:")) + filename;
 			return EXCEPTION;
 		}
 		
@@ -511,7 +511,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 			HASH_DONE(&state, hash);
 		} catch(...) {
 			st->Release();
-			errormsg = L"exception";
+			errormsg = TJS_W("exception");
 			return EXCEPTION;
 		}
 		st->Release();
@@ -556,16 +556,16 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 int
 SigChecker::CheckSignature() {
 	if (filename == "") {
-		errormsg = L"Specify target file";
+		errormsg = TJS_W("Specify target file");
 		return EXCEPTION;
 	}
 	if (publickey == "") {
-		errormsg = L"Specify public key";
+		errormsg = TJS_W("Specify public key");
 		return EXCEPTION;
 	}
 
 	if (TVPGetPlacedPath(filename) == "") {
-		errormsg = ttstr(L"not exist:") + filename;
+		errormsg = ttstr(TJS_W("not exist:")) + filename;
 		return EXCEPTION;
 	}
 	
