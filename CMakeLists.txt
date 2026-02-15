@@ -21,13 +21,23 @@ find_path(LIBTOMMATH_INCLUDE_DIR tommath.h)
 find_library(LIBTOMCRYPT_LIBRARY tomcrypt)
 find_library(LIBTOMMATH_LIBRARY tommath)
 
-if(NOT TARGET ncbind)
-add_subdirectory(../ncbind ${CMAKE_CURRENT_BINARY_DIR}/ncbind)
+if(TVP_STATIC_PLUGIN)
+    set(TVP_LIBRARY_TYPE STATIC)
+else()
+    set(TVP_LIBRARY_TYPE SHARED)
 endif()
 
-add_library(${PROJECT_NAME} SHARED
+add_library(${PROJECT_NAME} ${TVP_LIBRARY_TYPE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ncbind/ncbind.cpp
 	main.cpp
 )
+
+if (TVP_STATIC_PLUGIN)
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    TVP_STATIC_PLUGIN
+    TVP_PLUGIN_NAME=${PROJECT_NAME}
+)
+endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 	LTM_DESC
@@ -43,8 +53,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 	${LIBTOMMATH_INCLUDE_DIR}
 )
 
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ncbind
+)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    ncbind
+    tp_stub
 	${LIBTOMCRYPT_LIBRARY}
 	${LIBTOMMATH_LIBRARY}
 )
