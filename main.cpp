@@ -229,38 +229,34 @@ public:
 
 //---------------------------------------------------------------------------
 
-// IStream の読み込み位置取得
-static DWORD getPosition(IStream *is)
+// ストリームの読み込み位置取得
+static DWORD getPosition(iTJSBinaryStream *is)
 {
 	if (is) {
-		LARGE_INTEGER move = {0};
-		ULARGE_INTEGER newposition;
-		if (is->Seek(move, STREAM_SEEK_CUR, &newposition) == S_OK) {
-			return (DWORD)newposition.QuadPart;
+		try {
+			return (DWORD)is->GetPosition();
+		} catch(...) {
 		}
 	}
-	return -1;
-
+	return (DWORD)-1;
 }
 
-// IStream の読み込み位置指定
-static void setPosition(IStream *is, DWORD offset)
+// ストリームの読み込み位置指定
+static void setPosition(iTJSBinaryStream *is, DWORD offset)
 {
 	if (is) {
-		LARGE_INTEGER move;
-		move.QuadPart = offset;
-		ULARGE_INTEGER newposition;
-		is->Seek(move, STREAM_SEEK_SET, &newposition);
+		try {
+			is->Seek((tjs_int64)offset, TJS_BS_SEEK_SET);
+		} catch(...) {
+		}
 	}
 }
 
-// IStream のサイズ取得
-static DWORD getSize(IStream *is)
+// ストリームのサイズ取得
+static DWORD getSize(iTJSBinaryStream *is)
 {
 	if (is) {
-		STATSTG stat;
-		is->Stat(&stat, STATFLAG_NONAME);
-		return (DWORD)stat.cbSize.QuadPart;
+		return (DWORD)is->GetSize();
 	}
 	return 0;
 }
@@ -307,22 +303,22 @@ SigChecker::CheckKrkrExecutable(const char *mark)
 	// (area size bofore specified mark)
 	int mark_size = strlen(mark);
 	
-	IStream *st = TVPCreateIStream(filename, TJS_BS_READ);
+	iTJSBinaryStream *st = TVPCreateStream(filename, TJS_BS_READ);
 	if (st == NULL) {
 		errormsg = ttstr(TJS_W("can't open file:")) + filename;
 		return EXCEPTION;
 	}
-	
+
 	int imagesize = 0;
 	try {
 //		int ofs = MIN_KRKR_MARK_SEARCH;
 		int ofs = 0;
 		char buf[4096];
-		DWORD read;
+		tjs_uint read;
 		bool found = false;
 		setPosition(st, ofs);
-		while( st->Read(buf, sizeof(buf), &read) == S_OK && read != 0){
-			for(int i = 0; i < read; i += 16) {
+		while ((read = st->Read(buf, sizeof(buf))) != 0) {
+			for(tjs_uint i = 0; i < read; i += 16) {
 				// the mark is aligned to paragraph (16bytes)
 				if(buf[i] == 'X') {
 					if(!memcmp(buf + i + 1, mark + 1, mark_size - 1)) {
@@ -338,11 +334,11 @@ SigChecker::CheckKrkrExecutable(const char *mark)
 //			if(ofs >= MAX_KRKR_MARK_SEARCH) break;
 		}
 	} catch(...) {
-		st->Release();
+		st->Destruct();
 		errormsg = TJS_W("exception");
 		return EXCEPTION;
 	}
-	st->Release();
+	st->Destruct();
 	return imagesize;
 }
 
@@ -362,12 +358,14 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		// read pubkey
 		const char *start = strstr(inkey, startline);
 		if (!start) {
-			errormsg = ttstr(TJS_W("Cannot find \")") + startline + "\" in the key string";
+			ttstr msg = ttstr(TJS_W("Cannot find \")")) + ttstr(startline) + ttstr(TJS_W("\" in the key string"));
+			errormsg = msg;
 			return EXCEPTION;
 		}
 		const char *end = strstr(inkey, endline);
 		if (!end) {
-			errormsg = ttstr(TJS_W("Cannot find \")") + endline + "\" in the key string";
+			ttstr msg = ttstr(TJS_W("Cannot find \")")) + ttstr(endline) + ttstr(TJS_W("\" in the key string"));
+			errormsg = msg;
 			return EXCEPTION;
 		}
 		start += strlen(startline);
@@ -388,7 +386,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		char buf_asc[sizeof(buf)*3/2+2];
 		unsigned long buf_asc_len;
 		
-		IStream *st = NULL;
+		iTJSBinaryStream *st = NULL;
 		if(ofs == -1) {
 			// separated
 			ttstr signame = filename + TJS_W(".sig");
@@ -396,10 +394,10 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 				errormsg = ttstr(TJS_W("not exist:")) + signame;
 				return EXCEPTION;
 			}
-			st = TVPCreateIStream(filename + TJS_W(".sig"), TJS_BS_READ);
+			st = TVPCreateStream(filename + TJS_W(".sig"), TJS_BS_READ);
 		} else {
 			// embedded
-			st = TVPCreateIStream(filename, TJS_BS_READ);
+			st = TVPCreateStream(filename, TJS_BS_READ);
 			setPosition(st, ofs);
 		}
 		if (st == NULL) {
@@ -408,13 +406,13 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 			return EXCEPTION;
 		}
 		try {
-			st->Read(buf_asc, sizeof(buf_asc) - 1, &buf_asc_len);
+			buf_asc_len = st->Read(buf_asc, sizeof(buf_asc) - 1);
 		} catch(...) {
-			st->Release();
+			st->Destruct();
 			errormsg = TJS_W("exception");
 			return EXCEPTION;
 		}
-		st->Release();
+		st->Destruct();
 		
 		buf_asc[buf_asc_len] = 0;
 		buf_asc_len = strlen(buf_asc);
@@ -451,12 +449,12 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 			return CANCELED;
 		}
 
-		IStream *st = TVPCreateIStream(filename, TJS_BS_READ);
+		iTJSBinaryStream *st = TVPCreateStream(filename, TJS_BS_READ);
 		if (st == NULL) {
 			errormsg = ttstr(TJS_W("can't open file:")) + filename;
 			return EXCEPTION;
 		}
-		
+
 		int size = getSize(st);
 		if(ignorestart != -1 && ignoreend == -1) ignoreend = size;
 		int signfnsize = size;
@@ -464,12 +462,12 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 		try {
 			hash_state state;
 			HASH_INIT(&state);
-			
-			DWORD read;
+
+			tjs_uint read;
 			unsigned char buf[4096];
 			int ofs = 0;
-			while(st->Read(buf, sizeof(buf), &read) == S_OK && read != 0) {
-				if(ignorestart != -1 && read + ofs > ignorestart) {
+			while ((read = st->Read(buf, sizeof(buf))) != 0) {
+				if(ignorestart != -1 && (int)read + ofs > ignorestart) {
 					read = ignorestart - ofs;
 					if(read) HASH_PROCESS(&state, buf, read);
 					break;
@@ -477,9 +475,9 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 					HASH_PROCESS(&state, buf, read);
 				}
 				ofs += read;
-				
+
 				if (canceled) {
-					st->Release();
+					st->Destruct();
 					return CANCELED;
 				}
 				// callback notify
@@ -489,15 +487,15 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 					progress(pts);
 				}
 			}
-			
-			if (ignorestart != -1 && getPosition(st) != ignoreend) {
+
+			if (ignorestart != -1 && (int)getPosition(st) != ignoreend) {
 				setPosition(st, (ofs = ignoreend));
-				while (st->Read(buf, sizeof(buf), &read) == S_OK && read != 0) {
+				while ((read = st->Read(buf, sizeof(buf))) != 0) {
 					HASH_PROCESS(&state, buf, read);
 					ofs += read;
 
 					if (canceled) {
-						st->Release();
+						st->Destruct();
 						return CANCELED;
 					}
 					// callback notify
@@ -510,11 +508,11 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 			}
 			HASH_DONE(&state, hash);
 		} catch(...) {
-			st->Release();
+			st->Destruct();
 			errormsg = TJS_W("exception");
 			return EXCEPTION;
 		}
-		st->Release();
+		st->Destruct();
 	}
 
 	if (canceled) {
