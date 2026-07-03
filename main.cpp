@@ -3,11 +3,13 @@
 #include <string>
 #include <vector>
 using namespace std;
-#include <process.h>
+#include <thread>
 
-
-#define WM_SIGCHECKPROGRESS (WM_APP+2)
-#define WM_SIGCHECKDONE     (WM_APP+3)
+// TVP_WM_USER は全バリアント共通のユーザメッセージ基点 (0x8000。tp_stub.h が
+// WIN/Generic 双方で定義)。ここのメッセージは registerMessageReceiver で登録した
+// receiver に TVPPostWindowMessage 経由で配信される。
+#define WM_SIGCHECKPROGRESS (TVP_WM_USER+2)
+#define WM_SIGCHECKDONE     (TVP_WM_USER+3)
 
 // vcpkgのlibtommathでデッドコード除去がうまく働かずに
 // 未定義シンボル参照が起こる場合用のダミー定義
@@ -110,12 +112,13 @@ protected:
 
 public:
 	// メッセージ送信
-	void postMessage(UINT msg, WPARAM wparam=NULL, LPARAM lparam=NULL) {
-		// ウィンドウハンドルを取得して通知
+	void postMessage(tjs_uint32 msg, tjs_uint64 wparam=0, tjs_uint64 lparam=0) {
+		// ウィンドウハンドルを取得して receiver chain へ非同期通知
+		// (WIN では ::PostMessage、Generic では Application 経由の receiver 配信)
 		tTJSVariant val;
 		objthis->PropGet(0, TJS_W("HWND"), NULL, &val, objthis);
-		HWND hwnd = reinterpret_cast<HWND>((tjs_intptr_t)(val));
-		::PostMessage(hwnd, msg, wparam, lparam);
+		void *handle = reinterpret_cast<void*>((tjs_intptr_t)(val));
+		TVPPostWindowMessage(handle, msg, wparam, lparam);
 	}
 
 protected:
@@ -146,19 +149,19 @@ protected:
 	}
 
 	// ウインドウイベント処理
-	static bool __stdcall sigcheckevent(void *userdata, tTVPWindowMessage *Message) {
+	static bool STDCALL sigcheckevent(void *userdata, tTVPWindowMessage *Message) {
 		if (Message->Msg == WM_SIGCHECKPROGRESS) {
 			iTJSDispatch2 *obj = (iTJSDispatch2*)userdata;
 			WindowSigCheck *self = ncbInstanceAdaptor<WindowSigCheck>::GetNativeInstance(obj);
 			if (self) {
-				self->eventProgress((SigChecker*)Message->WParam);
+				self->eventProgress(reinterpret_cast<SigChecker*>((tjs_intptr_t)Message->WParam));
 			}
 			return true;
 		} else if (Message->Msg == WM_SIGCHECKDONE) {
 			iTJSDispatch2 *obj = (iTJSDispatch2*)userdata;
 			WindowSigCheck *self = ncbInstanceAdaptor<WindowSigCheck>::GetNativeInstance(obj);
 			if (self) {
-				self->eventDone((SigChecker*)Message->WParam);
+				self->eventDone(reinterpret_cast<SigChecker*>((tjs_intptr_t)Message->WParam));
 			}
 			return true;
 		}
@@ -201,7 +204,7 @@ public:
 		}
 		SigChecker *checker = new SigChecker(handler, this, filename, publickey, info);
 		checkers[handler] = checker;
-		_beginthread(checkThread, 0, checker);
+		std::thread(checkThread, checker).detach();
 		return handler;
 	}
 
@@ -230,19 +233,19 @@ public:
 //---------------------------------------------------------------------------
 
 // ストリームの読み込み位置取得
-static DWORD getPosition(iTJSBinaryStream *is)
+static tjs_uint32 getPosition(iTJSBinaryStream *is)
 {
 	if (is) {
 		try {
-			return (DWORD)is->GetPosition();
+			return (tjs_uint32)is->GetPosition();
 		} catch(...) {
 		}
 	}
-	return (DWORD)-1;
+	return (tjs_uint32)-1;
 }
 
 // ストリームの読み込み位置指定
-static void setPosition(iTJSBinaryStream *is, DWORD offset)
+static void setPosition(iTJSBinaryStream *is, tjs_uint32 offset)
 {
 	if (is) {
 		try {
@@ -253,10 +256,10 @@ static void setPosition(iTJSBinaryStream *is, DWORD offset)
 }
 
 // ストリームのサイズ取得
-static DWORD getSize(iTJSBinaryStream *is)
+static tjs_uint32 getSize(iTJSBinaryStream *is)
 {
 	if (is) {
-		return (DWORD)is->GetSize();
+		return (tjs_uint32)is->GetSize();
 	}
 	return 0;
 }
@@ -481,7 +484,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 					return CANCELED;
 				}
 				// callback notify
-				int npts = (int)( (__int64)ofs * (__int64)100 / (__int64)signfnsize );
+				int npts = (int)( (tjs_int64)ofs * (tjs_int64)100 / (tjs_int64)signfnsize );
 				if(pts < npts) {
 					pts = npts;
 					progress(pts);
@@ -499,7 +502,7 @@ SigChecker::CheckSignatureOfFile(int ignorestart, int ignoreend, int ofs)
 						return CANCELED;
 					}
 					// callback notify
-					int npts = (int)( (__int64)ofs * (__int64)100 / (__int64)signfnsize );
+					int npts = (int)( (tjs_int64)ofs * (tjs_int64)100 / (tjs_int64)signfnsize );
 					if(pts < npts) {
 						pts = npts;
 						progress(pts);
@@ -594,8 +597,8 @@ SigChecker::progress(int percent)
 {
 	progressPercent = percent;
 	if (notify) {
-		notify->postMessage(WM_SIGCHECKPROGRESS, (WPARAM)this);
-		Sleep(0);
+		notify->postMessage(WM_SIGCHECKPROGRESS, (tjs_uint64)(tjs_intptr_t)this);
+		std::this_thread::yield();
 	}
 }
 
@@ -604,8 +607,8 @@ SigChecker::start()
 {
 	result = CheckSignature();
 	if (notify) {
-		notify->postMessage(WM_SIGCHECKDONE, (WPARAM)this);
-		Sleep(0);
+		notify->postMessage(WM_SIGCHECKDONE, (tjs_uint64)(tjs_intptr_t)this);
+		std::this_thread::yield();
 	} else {
 		delete this;
 	}
