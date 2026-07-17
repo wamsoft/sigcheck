@@ -11,6 +11,14 @@ using namespace std;
 #define WM_SIGCHECKPROGRESS (TVP_WM_USER+2)
 #define WM_SIGCHECKDONE     (TVP_WM_USER+3)
 
+// receiver の呼び出し規約は tp_stub.h の tTVPWindowMessageReceiver に合わせる
+// (WIN 版=__stdcall / Generic 版=規約指定なし。x86 ビルドでのみ実差が出る)
+#ifdef __WINVER__
+#define RECEIVER_CALLCONV STDCALL
+#else
+#define RECEIVER_CALLCONV
+#endif
+
 // vcpkgのlibtommathでデッドコード除去がうまく働かずに
 // 未定義シンボル参照が起こる場合用のダミー定義
 #ifdef ENABLE_DUMMY_FOR_DEAD_CODE_ELIM_FAIL
@@ -149,7 +157,7 @@ protected:
 	}
 
 	// ウインドウイベント処理
-	static bool STDCALL sigcheckevent(void *userdata, tTVPWindowMessage *Message) {
+	static bool RECEIVER_CALLCONV sigcheckevent(void *userdata, tTVPWindowMessage *Message) {
 		if (Message->Msg == WM_SIGCHECKPROGRESS) {
 			iTJSDispatch2 *obj = (iTJSDispatch2*)userdata;
 			WindowSigCheck *self = ncbInstanceAdaptor<WindowSigCheck>::GetNativeInstance(obj);
