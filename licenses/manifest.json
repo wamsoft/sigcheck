@@ -1,0 +1,7 @@
+{
+  "comment": "sigcheck が静的リンクする第三者コンポーネントのライセンス。収録元は vcpkg の share/<port>/copyright。更新したら core の licenses/gen_licenses_c.py --mode plugin で LicensesGen.cpp を再生成する。",
+  "entries": [
+    { "name": "LibTomCrypt", "group": "plugin:sigcheck", "license": "パブリックドメイン / WTFPL (デュアル)", "file": "texts/libtomcrypt.txt", "note": "署名検証 (RSA/ハッシュ) に使用" },
+    { "name": "LibTomMath", "group": "plugin:sigcheck", "license": "Unlicense (パブリックドメイン)", "file": "texts/libtommath.txt", "note": "LibTomCrypt の多倍長演算バックエンド" }
+  ]
+}

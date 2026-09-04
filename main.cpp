@@ -652,3 +652,8 @@ static void PostRegistCallback()
 }
 
 NCB_POST_REGIST_CALLBACK(PostRegistCallback);
+
+// 静的リンクする第三者コンポーネント (LibTomCrypt / LibTomMath) の
+// ライセンスを本体収集機構へ登録 (LicensesGen.cpp = licenses/manifest.json から生成)
+extern void RegisterSigCheckLicenses();
+NCB_PRE_REGIST_CALLBACK(RegisterSigCheckLicenses);

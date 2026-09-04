@@ -13,6 +13,7 @@ krkrz_plugin(sigcheck
 	NCBIND
 	SOURCES
 		main.cpp
+		LicensesGen.cpp
 	DEFINITIONS
 		LTM_DESC
 		USE_LTM
