@@ -64,8 +64,12 @@ static const unsigned char lic_01[] = {
 
 void RegisterSigCheckLicenses()
 {
-	TVPRegisterLicense(TJS_W("LibTomCrypt"), TJS_W("plugin:sigcheck"), lic_00, 409, 719);
-	TVPRegisterLicense(TJS_W("LibTomMath"), TJS_W("plugin:sigcheck"), lic_01, 711, 1257);
+	try {
+		TVPRegisterLicense(TJS_W("LibTomCrypt"), TJS_W("plugin:sigcheck"), lic_00, 409, 719);
+		TVPRegisterLicense(TJS_W("LibTomMath"), TJS_W("plugin:sigcheck"), lic_01, 711, 1257);
+	} catch (...) {
+		/* 本体が License API を持たない (古い本体) ときは登録しない */
+	}
 }
 
 #else /* !TVP_HAS_LICENSE_API */
